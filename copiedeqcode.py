@@ -1,7 +1,7 @@
 import matplotlib
 matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Button, Slider
 import scipy as sp
 from scipy.integrate import odeint
 import numpy as np
@@ -74,6 +74,7 @@ D_c = x[:,4]
 
 #Define Cancer
 C = P_c + D_c
+
 '''
 #Parameter vector
 params = np.array([lambda_p, lambda_c, lambda_i, Beta, alpha_c, alpha_i, S_pc, S_pn, S_i, r, n, x_0[0], x_0[1], x_0[2]])
@@ -147,8 +148,16 @@ print(f"r          = {best_r}")
 print(f"n          = {best_n}")
 '''
 
+'''
+    FIGURE CREATION
+    fig_plot for ODEs
+    fig_sliders for sliders
+    fig_overlay for all ODEs on one plot
+'''
+
 fig_plot, axs_plot = plt.subplots(3 , 2 , figsize = (7 , 7) )
 fig_sliders = plt.figure( figsize = ( 10 , 5 ) )
+fig_overlay = plt.subplots( figsize = ( 7 , 7 ) )
 
 
 '''
@@ -171,16 +180,17 @@ for ax, data, color, title, ylabel in plots:
     ax.set_xlabel('$t$')
     ax.set_ylabel(ylabel)
     ax.grid()
+    fig_overlay[1].plot(t, data, label = title, color = color)
 
 '''
     SLIDERS FOR COEFFICIENT ADJUSTMENT
 '''
 
-beta_slider = Slider(fig_sliders.add_axes([0.06, 0.9, 0.35, 0.03]), label = 'Beta', valmin = 0, valmax = 0.0001, valstep = 0.00000001, valinit = 0 )
-lambda_p_slider = Slider(fig_sliders.add_axes([0.06, 0.8, 0.35, 0.03]), label = 'lambda_p', valmin = 0, valmax = 20, valstep = 0.1, valinit = lambda_p )
-lambda_c_slider = Slider(fig_sliders.add_axes([0.06, 0.7, 0.35, 0.03]), label = 'lambda_c', valmin = 0, valmax = 20, valstep = 0.1, valinit = lambda_c )
-lambda_i_slider = Slider(fig_sliders.add_axes([0.06, 0.6, 0.35, 0.03]), label = 'lambda_i', valmin = 0, valmax = 20, valstep = 0.1, valinit = lambda_i )
-alpha_c_slider = Slider(fig_sliders.add_axes([0.06, 0.5, 0.35, 0.03]), label = 'alpha_c', valmin = 0, valmax = 1, valstep = 0.01, valinit = alpha_c )
+beta_slider = Slider(fig_sliders.add_axes([0.08, 0.9, 0.35, 0.03]), label = 'Beta', valmin = 0, valmax = 0.00125, valstep = 0.00000001, valinit = 0 )
+lambda_p_slider = Slider(fig_sliders.add_axes([0.08, 0.8, 0.35, 0.03]), label = 'lambda_p', valmin = 0, valmax = 20, valstep = 0.1, valinit = lambda_p )
+lambda_c_slider = Slider(fig_sliders.add_axes([0.08, 0.7, 0.35, 0.03]), label = 'lambda_c', valmin = 0, valmax = 20, valstep = 0.1, valinit = lambda_c )
+lambda_i_slider = Slider(fig_sliders.add_axes([0.08, 0.6, 0.35, 0.03]), label = 'lambda_i', valmin = 0, valmax = 20, valstep = 0.1, valinit = lambda_i )
+alpha_c_slider = Slider(fig_sliders.add_axes([0.08, 0.5, 0.35, 0.03]), label = 'alpha_c', valmin = 0, valmax = 1, valstep = 0.01, valinit = alpha_c )
 alpha_i_slider = Slider(fig_sliders.add_axes([0.56, 0.9, 0.35, 0.03]), label = 'alpha_i', valmin = 0, valmax = 1, valstep = 0.01, valinit = alpha_i )
 S_pc_slider = Slider(fig_sliders.add_axes([0.56, 0.8, 0.35, 0.03]), label = 'S_pc', valmin = 0, valmax = 1, valstep = 0.01, valinit = S_pc )
 S_pn_slider = Slider(fig_sliders.add_axes([0.56, 0.7, 0.35, 0.03]), label = 'S_pn', valmin = 0, valmax = 1e-5, valstep = 1e-7, valinit = S_pn )
@@ -190,28 +200,45 @@ n_slider = Slider(fig_sliders.add_axes([0.56, 0.4, 0.35, 0.03]), label = 'n', va
 
 sliders = [ beta_slider, lambda_p_slider, lambda_c_slider, lambda_i_slider, alpha_c_slider, alpha_i_slider, S_pc_slider, S_pn_slider, S_i_slider, r_slider, n_slider ]
 
-def update(val):
-    for i in sliders:
-        current_[i] = i.val
+'''
+    UPDATE FUNCTION FOR SLIDERS
+    Passes value of type float from slider
+    Updates ODEs, redraws plots
+'''
 
-    dP_ndt = lambda_p - current_beta * I * P_n - S_pn * P_n
-    dP_cdt = lambda_c * P_c + current_beta * I * P_n - alpha_i * I * P_c - S_pc * P_c
-    dIdt   = lambda_i + alpha_c * P_c - S_i * I
-    dD_ndt = S_pn * P_n - r * D_n
-    dD_cdt = S_pc * P_c + alpha_i * I * P_c - n * r*I * D_c
+def update_from_slider_value(val: float) -> None:
+    for i in sliders:
+        i = i.val
+
+    dP_ndt = lambda_p_slider.val - beta_slider.val * I * P_n - S_pn_slider.val * P_n
+    dP_cdt = lambda_c_slider.val * P_c + beta_slider.val * I * P_n - alpha_i_slider.val * I * P_c - S_pc_slider.val * P_c
+    dIdt   = lambda_i_slider.val + alpha_c_slider.val * P_c - S_i_slider.val * I
+    dD_ndt = S_pn_slider.val * P_n - r_slider.val * D_n
+    dD_cdt = S_pc_slider.val * P_c + alpha_i_slider.val * I * P_c - n_slider.val * r_slider.val * I * D_c
     
     axs_plot[0, 0].lines[0].set_ydata(dP_ndt)
     axs_plot[0, 1].lines[0].set_ydata(dP_cdt)
     axs_plot[1, 0].lines[0].set_ydata(dD_ndt)
     axs_plot[1, 1].lines[0].set_ydata(dD_cdt)
     axs_plot[2, 0].lines[0].set_ydata(dIdt)
+    fig_overlay[1].lines[0].set_ydata(dP_ndt)
+    fig_overlay[1].lines[1].set_ydata(dP_cdt)
+    fig_overlay[1].lines[2].set_ydata(dD_ndt)
+    fig_overlay[1].lines[3].set_ydata(dD_cdt)
+    fig_overlay[1].lines[4].set_ydata(dIdt)
 
     fig_plot.canvas.draw_idle()
+    fig_overlay[0].canvas.draw_idle()
 
+for i in sliders:
+    i.on_changed(update_from_slider_value)
 
-reset_axs = fig_sliders.add_axes([0.8, 0.05, 0.1, 0.04])
-button = matplotlib.widgets.Button(reset_axs, 'Reset', color='lightgray', hovercolor='gray')
+button = Button(fig_sliders.add_axes([0.45, 0.05, 0.1, 0.04]), 'Reset', color = 'lightgoldenrodyellow', hovercolor = '0.975')
 
-beta_slider.on_changed(update)
+def reset(event: float) -> None:
+    for i in sliders:
+        i.reset()
 
+button.on_clicked(reset)
 plt.show()
+
